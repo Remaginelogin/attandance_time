@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-User Time Tracker</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
+
+        body {
+            font-family: 'Orbitron', sans-serif;
+            text-align: center;
+            background: url('background.jpg') no-repeat center center fixed;
+            background-size: cover;
+            padding: 20px;
+            color: white;
+        }
+        .container {
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 10px;
+            max-width: 600px;
+            margin: auto;
+            color: white;
+        }
+        .hidden { display: none; }
+        .btn {
+            padding: 10px 20px;
+            margin: 10px;
+            border: none;
+            border-radius: 5px;
+            background-color: #28a745;
+            color: white;
+            cursor: pointer;
+        }
+        .btn:disabled { background-color: gray; cursor: not-allowed; }
+        .calendar {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: rgba(255, 255, 255, 0.2);
+        }
+        .calendar th, .calendar td {
+            border: 1px solid white;
+            padding: 8px;
+            text-align: center;
+        }
+        .summary {
+            font-size: 18px;
+            font-weight: bold;
+            background: rgba(255, 255, 255, 0.3);
+            padding: 10px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container" id="login-form">
+        <h2>🔐 User Login</h2>
+        <input type="text" id="username" placeholder="Enter Username" required>
+        <button class="btn" onclick="login()">Login</button>
+    </div>
+
+    <div class="container hidden" id="tracker">
+        <div class="summary" id="month-summary">TOTAL DAYS: 0 | TOTAL HOURS: 00:00</div>
+        <h2>⏳ Time Tracker</h2>
+        <h3 id="user-name"></h3>
+        <p id="current-date"></p>
+        <div class="summary">
+            <p>Time In: <span id="displayTimeIn">--:--</span></p>
+            <p>Time Out: <span id="displayTimeOut">--:--</span></p>
+            <p>Total Time: <span id="displayTotalTime">--:--</span></p>
+        </div>
+        <button class="btn" id="timeInBtn" onclick="timeIn()">✅ Time In</button>
+        <button class="btn" id="timeOutBtn" onclick="timeOut()" disabled>❌ Time Out</button>
+        <button class="btn" onclick="logout()">Logout</button>
+        
+        <h3>👥 User List</h3>
+        <ul id="user-list"></ul>
+
+        <table class="calendar">
+            <thead>
+                <tr>
+                    <th>User</th>
+                    <th>Date</th>
+                    <th>Day</th>
+                    <th>Time In ✅</th>
+                    <th>Time Out ❌</th>
+                    <th>Work Hours ⏳</th>
+                </tr>
+            </thead>
+            <tbody id="log-list"></tbody>
+        </table>
+    </div>
+
+    <script>
+        let user = localStorage.getItem("username") || "";
+        let logs = JSON.parse(localStorage.getItem("timeLogs")) || {};
+        let users = JSON.parse(localStorage.getItem("users")) || [];
+
+        function login() {
+            user = document.getElementById("username").value.trim().toUpperCase();
+            if (!user) {
+                alert("Please enter a username!");
+                return;
+            }
+            if (!users.includes(user)) {
+                users.push(user);
+                localStorage.setItem("users", JSON.stringify(users));
+            }
+            localStorage.setItem("username", user);
+            if (!logs[user]) logs[user] = {};
+            localStorage.setItem("timeLogs", JSON.stringify(logs));
+            showTracker();
+        }
+
+        function showTracker() {
+            document.getElementById("login-form").classList.add("hidden");
+            document.getElementById("tracker").classList.remove("hidden");
+            document.getElementById("user-name").innerText = user;
+            document.getElementById("current-date").innerText = new Date().toLocaleDateString();
+            updateUserList();
+            updateButtonState();
+            generateMonthLog();
+        }
+
+        function timeIn() {
+            let today = new Date().toLocaleDateString();
+            logs[user][today] = logs[user][today] || {};
+            logs[user][today].timeIn = new Date().toLocaleTimeString();
+            localStorage.setItem("timeLogs", JSON.stringify(logs));
+            updateButtonState();
+            generateMonthLog();
+        }
+
+        function timeOut() {
+            let today = new Date().toLocaleDateString();
+            if (!logs[user][today] || !logs[user][today].timeIn) {
+                alert("Please Time In first!");
+                return;
+            }
+            logs[user][today].timeOut = new Date().toLocaleTimeString();
+            logs[user][today].workHours = calculateTimeDifference(logs[user][today].timeIn, logs[user][today].timeOut);
+            localStorage.setItem("timeLogs", JSON.stringify(logs));
+            updateButtonState();
+            generateMonthLog();
+        }
+
+        function calculateTimeDifference(startTime, endTime) {
+            let start = new Date("1970-01-01 " + startTime);
+            let end = new Date("1970-01-01 " + endTime);
+            let diff = (end - start) / 1000;
+            let hours = Math.floor(diff / 3600);
+            let minutes = Math.floor((diff % 3600) / 60);
+            return `${hours}:${minutes < 10 ? "0" : ""}${minutes}`;
+        }
+
+        function logout() {
+            localStorage.removeItem("username");
+            document.getElementById("tracker").classList.add("hidden");
+            document.getElementById("login-form").classList.remove("hidden");
+        }
+
+        function updateButtonState() {
+            let today = new Date().toLocaleDateString();
+            let log = logs[user][today] || {};
+            document.getElementById("timeInBtn").disabled = !!log.timeIn;
+            document.getElementById("timeOutBtn").disabled = log.timeIn && !log.timeOut ? false : true;
+            document.getElementById("displayTimeIn").innerText = log.timeIn || "--:--";
+            document.getElementById("displayTimeOut").innerText = log.timeOut || "--:--";
+            document.getElementById("displayTotalTime").innerText = log.workHours || "--:--";
+        }
+
+        function updateUserList() {
+            document.getElementById("user-list").innerHTML = users.map(u => `<li>${u}</li>`).join("");
+        }
+
+        function generateMonthLog() {
+            let tbody = document.getElementById("log-list");
+            tbody.innerHTML = "";
+            users.forEach(u => {
+                for (let date in logs[u] || {}) {
+                    let log = logs[u][date];
+                    tbody.innerHTML += `<tr>
+                        <td>${u}</td>
+                        <td>${date}</td>
+                        <td>${new Date(date).toLocaleDateString('en-US', { weekday: 'long' })}</td>
+                        <td>${log.timeIn || ""}</td>
+                        <td>${log.timeOut || ""}</td>
+                        <td>${log.workHours || ""}</td>
+                    </tr>`;
+                }
+            });
+        }
+
+        if (user) showTracker();
+    </script>
+</body>
+</html>
